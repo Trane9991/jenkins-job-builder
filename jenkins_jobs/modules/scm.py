@@ -223,13 +223,6 @@ def git(registry, xml_parent, data):
         ("git-config-email", 'gitConfigEmail', ''),
     ]
 
-    choosing_strategies = {
-        'default': 'hudson.plugins.git.util.DefaultBuildChooser',
-        'gerrit': ('com.sonyericsson.hudson.plugins.'
-                   'gerrit.trigger.hudsontrigger.GerritTriggerBuildChooser'),
-        'inverse': 'hudson.plugins.git.util.InverseBuildChooser',
-    }
-
     scm = XML.SubElement(xml_parent,
                          'scm', {'class': 'hudson.plugins.git.GitSCM'})
     XML.SubElement(scm, 'configVersion').text = '2'
@@ -287,8 +280,68 @@ def git(registry, xml_parent, data):
         else:
             xe.text = val
 
-    exts_node = XML.SubElement(scm, 'extensions')
+
+    ## handle extensions here later
+    git_extensions(scm, data)
+    
+    browser = data.get('browser', 'auto')
+    browserdict = {
+        'auto': 'auto',
+        'assemblaweb': 'AssemblaWeb',
+        'bitbucketweb': 'BitbucketWeb',
+        'cgit': 'CGit',
+        'fisheye': 'FisheyeGitRepositoryBrowser',
+        'gitblit': 'GitBlitRepositoryBrowser',
+        'githubweb': 'GithubWeb',
+        'gitiles': 'Gitiles',
+        'gitlab': 'GitLab',
+        'gitlist': 'GitList',
+        'gitoriousweb': 'GitoriousWeb',
+        'gitweb': 'GitWeb',
+        'kiln': 'KilnGit',
+        'microsoft-tfs-2013': 'TFS2013GitRepositoryBrowser',
+        'phabricator': 'Phabricator',
+        'redmineweb': 'RedmineWeb',
+        'rhodecode': 'RhodeCode',
+        'stash': 'Stash',
+        'viewgit': 'ViewGitWeb',
+    }
+    if browser not in browserdict:
+        valid = sorted(browserdict.keys())
+        raise JenkinsJobsException("Browser entered is not valid must be one "
+                                   "of: %s or %s." % (", ".join(valid[:-1]),
+                                                      valid[-1]))
+    if browser != 'auto':
+        bc = XML.SubElement(scm, 'browser', {'class':
+                                             'hudson.plugins.git.browser.' +
+                                             browserdict[browser]})
+        XML.SubElement(bc, 'url').text = data['browser-url']
+        if browser in ['gitblit', 'viewgit']:
+            XML.SubElement(bc, 'projectName').text = str(
+                data.get('project-name', ''))
+        if browser == 'gitlab':
+            XML.SubElement(bc, 'version').text = str(
+                data.get('browser-version', '0.0'))
+        if browser == 'phabricator':
+            XML.SubElement(bc, 'repo').text = str(
+                data.get('repo-name', ''))
+
+def git_extensions(xml_parent, data, trait=False):
+    logger = logging.getLogger("%s:git_extensions" % __name__)
+
+    ### list of availavble traits here
+    ### https://github.com/jenkinsci/git-plugin/tree/master/src/main/java/jenkins/plugins/git/traits
+    trait_prefix = 'jenkins.plugins.git.traits'
     impl_prefix = 'hudson.plugins.git.extensions.impl.'
+    exts_node = XML.SubElement(xml_parent, 'extensions')
+    
+
+    choosing_strategies = {
+        'default': 'hudson.plugins.git.util.DefaultBuildChooser',
+        'gerrit': ('com.sonyericsson.hudson.plugins.'
+                   'gerrit.trigger.hudsontrigger.GerritTriggerBuildChooser'),
+        'inverse': 'hudson.plugins.git.util.InverseBuildChooser',
+    }
 
     if 'basedir' in data:
         ext = XML.SubElement(exts_node,
@@ -381,7 +434,12 @@ def git(registry, xml_parent, data):
         "do-not-fetch-tags"
     )
     if any(key in data for key in clone_options):
-        clo = XML.SubElement(exts_node, impl_prefix + 'CloneOption')
+        ext = XML.SubElement(exts_node, impl_prefix + 'CloneOption')
+        clo = ext
+        if trait:
+            clo = XML.SubElement(xml_parent, trait_prefix + 'CloneOptionTrait')
+            clo = XML.SubElement(clo, "extension").set("class", ext)
+        
         clone_mapping = [
             ('shallow-clone', 'shallow', False),
             ('depth', 'depth', 1),
@@ -454,48 +512,6 @@ def git(registry, xml_parent, data):
     use_author = str(data.get('use-author', False)).lower()
     if use_author == 'true':
         XML.SubElement(exts_node, impl_prefix + 'AuthorInChangelog')
-
-    browser = data.get('browser', 'auto')
-    browserdict = {
-        'auto': 'auto',
-        'assemblaweb': 'AssemblaWeb',
-        'bitbucketweb': 'BitbucketWeb',
-        'cgit': 'CGit',
-        'fisheye': 'FisheyeGitRepositoryBrowser',
-        'gitblit': 'GitBlitRepositoryBrowser',
-        'githubweb': 'GithubWeb',
-        'gitiles': 'Gitiles',
-        'gitlab': 'GitLab',
-        'gitlist': 'GitList',
-        'gitoriousweb': 'GitoriousWeb',
-        'gitweb': 'GitWeb',
-        'kiln': 'KilnGit',
-        'microsoft-tfs-2013': 'TFS2013GitRepositoryBrowser',
-        'phabricator': 'Phabricator',
-        'redmineweb': 'RedmineWeb',
-        'rhodecode': 'RhodeCode',
-        'stash': 'Stash',
-        'viewgit': 'ViewGitWeb',
-    }
-    if browser not in browserdict:
-        valid = sorted(browserdict.keys())
-        raise JenkinsJobsException("Browser entered is not valid must be one "
-                                   "of: %s or %s." % (", ".join(valid[:-1]),
-                                                      valid[-1]))
-    if browser != 'auto':
-        bc = XML.SubElement(scm, 'browser', {'class':
-                                             'hudson.plugins.git.browser.' +
-                                             browserdict[browser]})
-        XML.SubElement(bc, 'url').text = data['browser-url']
-        if browser in ['gitblit', 'viewgit']:
-            XML.SubElement(bc, 'projectName').text = str(
-                data.get('project-name', ''))
-        if browser == 'gitlab':
-            XML.SubElement(bc, 'version').text = str(
-                data.get('browser-version', '0.0'))
-        if browser == 'phabricator':
-            XML.SubElement(bc, 'repo').text = str(
-                data.get('repo-name', ''))
 
 
 def cvs(registry, xml_parent, data):
@@ -772,7 +788,6 @@ def store(registry, xml_parent, data):
     ]
     helpers.convert_mapping_to_xml(scm,
         data, mapping_optional, fail_required=False)
-
 
 def svn(registry, xml_parent, data):
     """yaml: svn

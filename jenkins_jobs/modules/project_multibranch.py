@@ -74,6 +74,7 @@ import jenkins_jobs.modules.base
 import jenkins_jobs.modules.helpers as helpers
 import six
 
+from jenkins_jobs.modules.scm import git_extensions
 from jenkins_jobs.errors import InvalidAttributeError
 
 logger = logging.getLogger(str(__name__))
@@ -497,6 +498,8 @@ def bitbucket_scm(xml_parent, data):
             data.get('filter-by-name-wildcard', ''),
             wscmf_name_mapping,
             fail_required=True)
+
+    git_extensions(traits, data, True)
 
 
 def gerrit_scm(xml_parent, data):
