@@ -499,7 +499,7 @@ def bitbucket_scm(xml_parent, data):
             wscmf_name_mapping,
             fail_required=True)
 
-    git_extensions(traits, data, True)
+    git_extensions(traits, data)
 
 
 def gerrit_scm(xml_parent, data):
