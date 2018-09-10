@@ -280,7 +280,7 @@ def git(registry, xml_parent, data):
         else:
             xe.text = val
 
-    exts = XML.SubElement(xml_parent, 'extensions')
+    exts = XML.SubElement(scm, 'extensions')
     ## handle extensions here later
     git_extensions(exts, data)
     
